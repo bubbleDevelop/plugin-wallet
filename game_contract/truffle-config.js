@@ -68,7 +68,7 @@ module.exports = {
     // options below to some value.
     //
     bubbledev: {
-      provider: () => new HDWalletProvider(config.bubbledev.mnemonic, 'http://192.168.31.115:18001'),
+      provider: () => new HDWalletProvider(config.bubbledev.mnemonic, 'http://47.243.239.220:16790'),
       // host: "35.247.155.162",
       // port: 6790,
       // from: "0xc115ceadf9e5923330e5f42903fe7f926dda65d2",
