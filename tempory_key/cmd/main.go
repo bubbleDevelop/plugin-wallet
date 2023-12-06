@@ -9,6 +9,7 @@ import (
 
 	"github.com/bubbleDevelop/tempory_key/contract"
 	"github.com/bubbleDevelop/tempory_key/tempPk"
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -20,7 +21,7 @@ var (
 	workPrivateKey                *ecdsa.PrivateKey
 	workAddress                   common.Address // 0x4307ffd08477668dC6d9f49f90b084B1f1CCC82b
 	tempPrivateKey                *ecdsa.PrivateKey
-	tempAddress                   common.Address
+	tempAddress                   common.Address // 0xA2088F51Ea1f9BA308F5014150961e5a6E0A4E13
 	operatorPrivateKey            *ecdsa.PrivateKey
 	operatorAddress               common.Address // 0x9FD5bD701Fc8105E46399104AC4B8c1B391df760
 	tempPrivateKeyContractAddress common.Address // 0x1000000000000000000000000000000000000021
@@ -30,7 +31,7 @@ var (
 func init() {
 	var err error
 
-	// work address
+	// work address 47d790a96ca73b23fbb65a6b911b8b57a1d915d364f12e2bc7fae83c196c9c97
 	workPrivateKey, err = crypto.HexToECDSA("47d790a96ca73b23fbb65a6b911b8b57a1d915d364f12e2bc7fae83c196c9c97")
 	if nil != err {
 		panic(err)
@@ -113,6 +114,19 @@ func sendTempPrivateKeyContractTx(client *ethclient.Client, privateKey *ecdsa.Pr
 		return err
 	}
 	fmt.Println("send transaction success,tx: ", sigTransaction.Hash().Hex())
+
+	receipt, err := bind.WaitMined(context.Background(), client, sigTransaction)
+	if err != nil {
+		fmt.Println("wait transaction error!!!")
+		return err
+	}
+	setLineOfCreditReceipt, err := json.Marshal(receipt)
+	if err != nil {
+		fmt.Println("marshal error!!!")
+		return err
+	}
+	fmt.Println("transaction receipt: ", string(setLineOfCreditReceipt))
+
 	return nil
 }
 
@@ -134,6 +148,38 @@ func behalfSignatureCall(client *ethclient.Client, workAddress, gameContractAddr
 func addLineOfCreditCall(client *ethclient.Client, gameContractAddress, workAddress common.Address, addValue *big.Int) error {
 	input := tempPk.AddLineOfCredit(gameContractAddress, workAddress, addValue)
 	return sendTempPrivateKeyContractTx(client, operatorPrivateKey, operatorAddress, input)
+}
+
+func getLineOfCreditCall(client *ethclient.Client, gameContractAddress, workAddress common.Address) (string, error) {
+	input := tempPk.GetLineOfCredit(gameContractAddress)
+	gasPrice, err := client.SuggestGasPrice(context.Background())
+	if err != nil {
+		return "", err
+	}
+	value := big.NewInt(0)
+	gasLimit := uint64(3000000)
+	msg := ethereum.CallMsg{Data: input, Gas: gasLimit, GasPrice: gasPrice, To: &tempPrivateKeyContractAddress, From: workAddress, Value: value}
+	resBytes, err := client.PendingCallContract(context.Background(), msg)
+	if err != nil {
+		return "", err
+	}
+
+	type Result struct {
+		Code uint32
+		Ret  interface{}
+	}
+
+	var res Result
+	fmt.Println(string(resBytes))
+	json.Unmarshal(resBytes, &res)
+	fmt.Println(res)
+
+	str, ok := res.Ret.(string)
+	if !ok {
+		return "", fmt.Errorf("invalid type")
+	}
+
+	return str, nil
 }
 
 func gameInfo(client *ethclient.Client) {
@@ -174,7 +220,7 @@ func gameInfo(client *ethclient.Client) {
 		GasLimit: uint64(3000000),
 		//Context:   nil,
 		//NoSend:    false,
-	}, workAddress)
+	}, operatorAddress)
 	if err != nil {
 		fmt.Println("set issuer error!!!")
 		panic(err)
@@ -218,7 +264,7 @@ func gameInfo(client *ethclient.Client) {
 		GasLimit: uint64(3000000),
 		//Context:   nil,
 		//NoSend:    false,
-	}, big.NewInt(1234567890))
+	}, big.NewInt(300000000000000000))
 	if err != nil {
 		fmt.Println("set line of credit error!!!")
 		panic(err)
@@ -308,28 +354,65 @@ func main() {
 	// game.sol
 	gameInfo(conn)
 
-	// 	// 绑定临时私钥
-	// 	err = bindTempPrivateKeyCall(conn, gameContractAddress, tempAddress, []byte("Hello World"))
-	// 	if nil != err {
-	// 		fmt.Println(err)
-	// 	}
+	// 绑定临时私钥
+	fmt.Println("bindTempPrivateKeyCall begin")
+	err = bindTempPrivateKeyCall(conn, gameContractAddress, tempAddress, []byte("Hello World"))
+	if nil != err {
+		fmt.Println(err)
+	}
+	fmt.Println("bindTempPrivateKeyCall end")
 
-	// 	// 合约调用代签
-	// 	input := tempPk.MovePlayer(big.NewInt(12345))
-	// 	err = behalfSignatureCall(conn, workAddress, gameContractAddress, []byte("Hello World"), input)
-	// 	if nil != err {
-	// 		fmt.Println(err)
-	// 	}
+	// 合约调用代签
+	lineOfCredit, err := getLineOfCreditCall(conn, gameContractAddress, workAddress)
+	if nil != err {
+		fmt.Println(err)
+	}
+	fmt.Println("lineOfCredit: ", lineOfCredit)
+	operatorValue, err := conn.PendingBalanceAt(context.Background(), operatorAddress)
+	if nil != err {
+		fmt.Println(err)
+		panic(err)
+	}
+	fmt.Println("operator balance: ", operatorValue.String())
+	fmt.Println("behalfSignatureCall begin")
+	input := tempPk.MovePlayer(big.NewInt(12345))
+	err = behalfSignatureCall(conn, workAddress, gameContractAddress, []byte("Hello World"), input)
+	if nil != err {
+		fmt.Println(err)
+	}
+	fmt.Println("behalfSignatureCall end")
+	operatorValue, err = conn.PendingBalanceAt(context.Background(), operatorAddress)
+	if nil != err {
+		fmt.Println(err)
+		panic(err)
+	}
+	fmt.Println("operator balance: ", operatorValue.String())
+	lineOfCredit, err = getLineOfCreditCall(conn, gameContractAddress, workAddress)
+	if nil != err {
+		fmt.Println(err)
+	}
+	fmt.Println("lineOfCredit: ", lineOfCredit)
 
-	// 	// 增加授信额度
-	// 	err = addLineOfCreditCall(conn, gameContractAddress, workAddress, big.NewInt(1234567890))
-	// 	if nil != err {
-	// 		fmt.Println(err)
-	// 	}
+	// 增加授信额度
+	fmt.Println("addLineOfCreditCall begin")
+	err = addLineOfCreditCall(conn, gameContractAddress, workAddress, big.NewInt(1234567890))
+	if nil != err {
+		fmt.Println(err)
+	}
+	fmt.Println("addLineOfCreditCall end")
 
-	// 	// 作废临时私钥
-	// 	err = invalidateTempPrivateKeyCall(conn, gameContractAddress, tempAddress)
-	// 	if nil != err {
-	// 		fmt.Println(err)
-	// 	}
+	// 查询授信额度
+	fmt.Println("getLineOfCreditCall begin")
+	lineOfCredit, err = getLineOfCreditCall(conn, gameContractAddress, workAddress)
+	if nil != err {
+		fmt.Println(err)
+	}
+	fmt.Println("line of credit:", lineOfCredit)
+	fmt.Println("getLineOfCreditCall end")
+
+	// 作废临时私钥
+	// err = invalidateTempPrivateKeyCall(conn, gameContractAddress, tempAddress)
+	// if nil != err {
+	// 	fmt.Println(err)
+	// }
 }

@@ -76,6 +76,20 @@ func AddLineOfCredit(gameContractAddress, workAddress common.Address, addValue *
 	return buf.Bytes()
 }
 
+func GetLineOfCredit(gameContractAddress common.Address) []byte {
+	params := make([][]byte, 0)
+	fnType, _ := rlp.EncodeToBytes(uint16(7204))
+	gameContractAddressBytes, _ := rlp.EncodeToBytes(gameContractAddress)
+
+	params = append(params, fnType)
+	params = append(params, gameContractAddressBytes)
+
+	buf := new(bytes.Buffer)
+	rlp.Encode(buf, params)
+
+	return buf.Bytes()
+}
+
 func MovePlayer(postionMove *big.Int) []byte {
 	methodId := crypto.Keccak256([]byte("movePlayer(uint256)"))[:4]
 	paramValue := math.U256Bytes(postionMove)
