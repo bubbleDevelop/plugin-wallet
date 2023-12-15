@@ -1,0 +1,26 @@
+{
+  "name": "simplegamedemo",
+  "version": "1.0.0",
+  "description": "编写solidity合约，实现一个游戏Demo： - 条件",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^2.0.2",
+    "hardhat": "^2.19.2"
+  },
+  "directories": {
+    "test": "test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/part-game/SimpleGameDemo.git"
+  },
+  "bugs": {
+    "url": "https://github.com/part-game/SimpleGameDemo/issues"
+  },
+  "homepage": "https://github.com/part-game/SimpleGameDemo#readme"
+}
